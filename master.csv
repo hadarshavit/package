@@ -1,0 +1,16 @@
+dataset name,task,metric
+algoreas_regression,regression,"MSE;MAE"
+algoreas_classification,classification,"ACC;F1"
+sat_epm,regression,"RMSE"
+sat_as,regression,"ClosedGap"
+co_regression,"MAE;MSE"
+co_unsupervised_mis,unsupervised,"MisSize"
+co_unsupervised_maxcut,unsupervised,"MaxCutSize"
+co_unsupervised_coloring,unsupervised,"NumColorsUsed"
+weather,regression,"Weather_MSE"
+chipdesign,generation,"ChipDesignScore"
+electroniccircuit,regression,"RSE"
+bluesky,regression,"spearman_r_0;spearman_r_1;spearman_r_2;r2_0;r2_1;r2_2;MAE"
+
+
+

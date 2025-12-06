@@ -1,0 +1,7 @@
+__pycache__/
+/.venv/
+/data/
+train.sh
+*.txt
+/wandb/
+/log/
