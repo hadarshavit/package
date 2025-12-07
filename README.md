@@ -45,7 +45,19 @@ Evaluator = graphbench.evaluator.Evaluator(metric_name)
 metric_results = Evaluator.evaluate()
 ```
 
-For a full list of the datasets, see the accompanying website (https://graphbench.io) or the ```datasets.csv``` file. 
+In order to use all datasets of a domain easily, each domain corresponds to one ```dataset_name``` variable:
+
+| Domain   | Dataset_name           |                             
+| :------- | :------ |
+| Social media | socialnetwork |
+| Combinatorial Optimization | co |
+| SAT solving | sat |
+| Algorithmic reasoning | algorithmic_reasoning_easy, algorithmic_reasoning_medium, algorithmic_reasoning_hard |
+| Electronic circuits | electronic_circuits |
+| Chip design | chipdesign |
+| Weather forecasting | weather |
+
+For a full list of the datasets, see the accompanying [website](https://graphbench.io) or the ```datasets.csv``` file. The corresponding metrics can be found in the ```master.csv``` file.
 
 ## Citing GraphBench:
 
