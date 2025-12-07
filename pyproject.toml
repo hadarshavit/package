@@ -52,7 +52,7 @@ dependencies = [
   "torchmetrics",
   "numpy",
   "pandas",
-  "smac3",
+  "smac",
   "requests",
   "networkx",
   "gurobipy",
@@ -74,4 +74,5 @@ include = ["graphbench*"]
 homepage = "http://graphbench.io"
 repository = "https://github.com/graphbench/package"
 documentation = "https://graphbench.github.io/website/datasets"
+
 
