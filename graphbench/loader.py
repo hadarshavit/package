@@ -104,9 +104,8 @@ class Loader():
                 pass
 
     def load(self):
-        
-
-        self._check_for_updates()
+        # TODO version file does not exist yet, so checking for updates does nothing other than printing a warning
+        # self._check_for_updates()
         datasets = self._get_dataset_names()
         for dataset in datasets:
             data = self._loader(dataset)
