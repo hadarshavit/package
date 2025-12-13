@@ -200,30 +200,30 @@ class BlueSkyDataset(InMemoryDataset):
 
     SOURCES_RAW: Dict[str, _SourceSpec] = {
 
-        "quotes": _SourceSpec(
-            url="https://zenodo.org/records/14669616/files/graphs.tar.gz?download=1",
+        "bluesky_quotes": _SourceSpec(
+            url="https://zenodo.org/records/14669616/files/graphs.tar.gz",
             raw_folder="bluesky_graphs",
         ),
-        "replies": _SourceSpec(
-            url="https://zenodo.org/records/14669616/files/graphs.tar.gz?download=1",
+        "bluesky_replies": _SourceSpec(
+            url="https://zenodo.org/records/14669616/files/graphs.tar.gz",
             raw_folder="bluesky_graphs",
         ),
-        "reposts": _SourceSpec(
-            url="https://zenodo.org/records/14669616/files/graphs.tar.gz?download=1",
+        "bluesky_reposts": _SourceSpec(
+            url="https://zenodo.org/records/14669616/files/graphs.tar.gz",
             raw_folder="bluesky_graphs",
         ),
     }
 
     SOURCES: Dict[str, _SourceSpec] = {
-        "quotes": _SourceSpec(
+        "bluesky_quotes": _SourceSpec(
             url="https://huggingface.co/datasets/log-rwth-aachen/Graphbench_SocialMedia/resolve/main/quotes.zip",
             raw_folder="bluesky_quotes",
         ),
-        "replies": _SourceSpec(
+        "bluesky_replies": _SourceSpec(
             url="https://huggingface.co/datasets/log-rwth-aachen/Graphbench_SocialMedia/resolve/main/replies.zip",
             raw_folder="bluesky_replies",
         ),
-        "reposts": _SourceSpec(
+        "bluesky_reposts": _SourceSpec(
             url="https://huggingface.co/datasets/log-rwth-aachen/Graphbench_SocialMedia/resolve/main/reposts.zip",
             raw_folder="bluesky_reposts",   
         ),
@@ -276,20 +276,20 @@ class BlueSkyDataset(InMemoryDataset):
             self.data, self.slices = torch.load(self.processed_path, weights_only=False)
             return
 
-        #self._prepare()  # (i) downloads, unpacks, load data + (ii) timestep handle + (e) subgraph + collate
+        self._prepare()  # (i) downloads, unpacks, load data + (ii) timestep handle + (e) subgraph + collate
         self.data, self.slices = torch.load(self.processed_path, weights_only=False)
         if self.cleanup_raw:
             self._cleanup()
 
     def _prepare(self) -> None:
         # (b) Download & unpack helpers
-        _download_and_unpack(source=self.source, raw_dir=self._raw_dir, logger=logger)
-        _download_and_unpack(source=self.source_features, raw_dir=self._raw_feature_dir, logger=logger)
+        _download_and_unpack(self.source, self._raw_dir, Path(self.processed_dir), logger=logger)
+        _download_and_unpack(self.source_features, self._raw_feature_dir, Path(self.processed_dir), logger=logger)
         # Pick default ts_train_end and gap per dataset type
        
-        if self.name in {'quotes', 'replies', 'reposts'}:
+        if self.name in {'bluesky_quotes', 'bluesky_replies', 'bluesky_reposts'}:
             loader = self._load_graphs_common
-            loader_kwargs = dict(base_csv_name=f"{self.name.split('.')[-1]}.csv", ts_start=None)
+            loader_kwargs = dict(base_csv_name=f"{self.name.split('_')[-1]}.csv", ts_start=None)
         else:
             raise ValueError(f"Unsupported dataset name: {self.name}")
 
