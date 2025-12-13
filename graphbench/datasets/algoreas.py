@@ -1,4 +1,3 @@
-
 """
 algorithmic reasoning  dataset loader
 -----------------------
@@ -19,23 +18,20 @@ Usage notes:
 - The class writes a processed file named
     `{dataset_name}_{num_nodes}_{difficulty}_{split}.pt` into the dataset folder
     under `root/algoreas/<raw_folder>/processed/`.
-
 """
 
-from torch_geometric.data import InMemoryDataset, Data
-from dataclasses import dataclass
-from typing import Callable, Dict, List, Mapping, Optional, Sequence, Tuple, Union, Any, TypeAlias
-import gzip
 import logging
 import os
+from dataclasses import dataclass
 from pathlib import Path
-import torch 
-import numpy as np
-import pandas as pd
-import requests
-import tarfile
+from typing import Callable, Dict, List, Optional, Union
+
+from torch_geometric.data import Data, InMemoryDataset
+
 from graphbench.algoreas_helpers.algoreas_utils import generate_algoreas_data
 from graphbench.helpers.download import _download_and_unpack
+
+
 # (i) helper functions
 
 # -----------------------------------------------------------------------------#

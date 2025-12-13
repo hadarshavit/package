@@ -10,19 +10,26 @@ benchmarks (e.g., ClosedGap, ChipDesignScore, Weather_MSE).
 
 """
 
-import pandas as pd
-from graphbench.weatherforecasting_helpers.losses import masked_loss
-from graphbench.weatherforecasting_helpers.losses import get_variable_weights
-from graphbench.weatherforecasting_helpers.losses import compute_pressure_level_weights, get_default_pressure_levels, compute_latitude_weights
-import torch
 import os
+
 import numpy as np
-import torch.nn as nn
-from graphbench.helpers.utils import VectorizedCircuitSimulator
-from torch import Tensor
-from torch_geometric.data import Data, Batch
-from torch_geometric.utils import remove_self_loops, unbatch, unbatch_edge_index
+import pandas as pd
+import torch
 import torchmetrics
+from torch import Tensor
+from torch_geometric.data import Batch
+from torch_geometric.utils import remove_self_loops, unbatch, unbatch_edge_index
+
+from graphbench.helpers.utils import VectorizedCircuitSimulator
+from graphbench.weatherforecasting_helpers.losses import (
+    compute_latitude_weights,
+    compute_pressure_level_weights,
+    get_default_pressure_levels,
+    get_variable_weights,
+    masked_loss,
+)
+
+
 class Evaluator():
     """Select and compute metrics for specified benchmark tasks.
 

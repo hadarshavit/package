@@ -9,18 +9,21 @@ into PyG `Data` objects. The class supports loading preprocessed caches and
 offers utilities for label normalization and dataset splitting.
 """
 
-from dataclasses import dataclass
+import json
 import logging
 import os
+from dataclasses import dataclass
 from pathlib import Path
 from tokenize import Name
-from typing import Callable, Dict, List, Optional, Union, Any
-from torch_geometric.data import InMemoryDataset, Data
+from typing import Any, Callable, Dict, List, Optional, Union
+
+import numpy as np
 import torch
 import tqdm
-import numpy as np
+from torch_geometric.data import Data, InMemoryDataset
+
 from graphbench.helpers.download import _download_and_unpack
-import json
+
 
 # (i) helper functions
 

@@ -1,16 +1,15 @@
 import itertools
-import random
 import json
+import random
 from typing import Optional, Union
 
-import numpy as np
 import networkx as nx
+import numpy as np
 from torch_geometric.data import Data
 from torch_geometric.utils.convert import from_networkx
 from tqdm import tqdm
 
 from .synthetic_dataset import SyntheticDataset
-
 
 
 class RBDataset(SyntheticDataset):

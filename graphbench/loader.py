@@ -1,9 +1,10 @@
-
+import csv
+import os
 
 import requests
-import os
-import csv
+
 from graphbench.co_helpers.split_dataset import split_dataset
+
 
 class Loader():
 

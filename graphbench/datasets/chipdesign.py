@@ -17,20 +17,20 @@ Usage notes:
     cache to `root/chipdesign/chipdesign/processed/<name>_<split>.pt`.
 """
 
-from torch_geometric.data import InMemoryDataset, Data
-from dataclasses import dataclass
-from typing import Callable, Dict, List, Mapping, Optional, Sequence, Tuple, Union, Any, TypeAlias
-import gzip
 import logging
 import os
+from dataclasses import dataclass
 from pathlib import Path
-import torch 
+from typing import Callable, Dict, List, Optional, Union
+
 import numpy as np
-import pandas as pd
-import requests
-import tarfile
+import torch
+from torch_geometric.data import Data, InMemoryDataset
 from tqdm import tqdm
+
 from graphbench.helpers.download import _download_and_unpack
+
+
 # (i) helper functions
 
 # -----------------------------------------------------------------------------#

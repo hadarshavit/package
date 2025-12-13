@@ -1,20 +1,17 @@
-
-# postponed evaluation of annotations (helps avoid circular import)
 from __future__ import annotations
+
+import gzip
+import lzma
+import shutil
+import tarfile
 import zipfile
 from pathlib import Path
-from threading import local
-from typing import Optional, Union, TYPE_CHECKING
-import requests
-import tarfile
-import gzip
-import json 
-import os
-import shutil
+from typing import TYPE_CHECKING, Optional, Union
 
-if TYPE_CHECKING:  # avoid circular import
+import requests
+
+if TYPE_CHECKING:
     from graphbench.datasets.bluesky import _SourceSpec
-import lzma
 
 
 def _download_and_unpack(source: _SourceSpec, raw_dir: Union[str, Path], processed_dir: Union[str, Path], logger) -> None:

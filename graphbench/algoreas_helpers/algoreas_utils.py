@@ -1,16 +1,10 @@
-import networkx as nx
 import random
-import tqdm
 
+import networkx as nx
 import torch
-
-from torch_geometric.utils import from_networkx
-
+import tqdm
 from networkx.algorithms import tree
-
-
-
-
+from torch_geometric.utils import from_networkx
 
 
 # -----------------------------------------------------------------------------

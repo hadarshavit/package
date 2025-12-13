@@ -1,11 +1,11 @@
+import pickle
 from abc import ABC, abstractmethod
 from collections.abc import Callable
 from pathlib import Path
-import pickle
 from typing import Optional
 
-from loguru import logger
 import networkx as nx
+from loguru import logger
 from torch_geometric.data import Data, InMemoryDataset
 from tqdm import tqdm
 

@@ -5,9 +5,10 @@ This module provides GPU-aware loss functions that automatically detect and use
 the same device as the input tensors, making them work seamlessly on both CPU and GPU.
 """
 
-import torch
-import numpy as np
 from typing import Dict, List, Optional, Tuple
+
+import numpy as np
+import torch
 
 
 def compute_latitude_weights(latitude_values: np.ndarray) -> torch.Tensor:

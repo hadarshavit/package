@@ -1,24 +1,19 @@
 from __future__ import annotations
-import gzip
+
 import logging
-from dataclasses import dataclass
 import os
+from dataclasses import dataclass
+from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Callable, Dict, List, Mapping, Optional, Sequence, Tuple, Union, Any, TypeAlias
-from matplotlib import pyplot as plt
-import numpy as np
+from typing import Callable, Dict, List, Mapping, Optional, Sequence, Tuple, TypeAlias, Union
+
 import pandas as pd
-import requests
-import tarfile
 import torch
 from torch import Tensor
 from torch_geometric.data import Data, InMemoryDataset
-from torch_geometric.utils import k_hop_subgraph, degree
-from datetime import datetime, timedelta
-from torch_geometric.loader import DataLoader as PyGDataLoader
-from torch_geometric.nn import global_mean_pool
-import torch.nn as nn
+
 from graphbench.helpers.download import _download_and_unpack
+
 
 TimeStamp: TypeAlias = Union[int, str]
 FEATURE_PT_PATH = "user_post_embs.pt" #raw files, slightly different name 

@@ -1,6 +1,3 @@
-
-
-from torch_geometric.data import InMemoryDataset, Data, HeteroData
 """
 sat dataset loader
 ------------------
@@ -11,35 +8,27 @@ benchmark datasets as PyG `InMemoryDataset` objects.
 The class handles downloading SAT datasets and supplementing labels via csv files. 
 """
 
-from dataclasses import dataclass
-from typing import Callable, Dict, List, Mapping, Optional, Sequence, Tuple, Union, Any, TypeAlias
-import gzip
+import gc
 import logging
 import os
-from pathlib import Path
-import torch 
-import numpy as np
-import pandas as pd
-import requests
-import tarfile
-import itertools
-import os
+import tempfile
 import time
-from collections import defaultdict
 from concurrent.futures import ProcessPoolExecutor
+from dataclasses import dataclass
 from pathlib import Path
+from typing import Callable, Dict, List, Optional, Union
+
 import numpy as np
 import pandas as pd
 import torch
-from torch_geometric.nn.pool import global_mean_pool
 import torch_geometric.transforms as T
-from torch_geometric.io import fs
-from torch import nn
 from sklearn.decomposition import PCA
-import gc
+from torch_geometric.data import Data, HeteroData, InMemoryDataset
+from torch_geometric.io import fs
 from tqdm import tqdm
-import tempfile
+
 from graphbench.helpers.download import _download_and_unpack
+
 
 # (0) Constants
 SMALL_N_VARS = 3_000

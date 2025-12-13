@@ -1,4 +1,3 @@
-#from ast import Pass
 """
 weather forecasting dataset loader
 ----------------------------------
@@ -6,26 +5,19 @@ weather forecasting dataset loader
 This module implements `WeatherforecastingDataset`, a PyG `InMemoryDataset`
 that prepares graph-based weather forecasting examples. It downloads preprocessed weather data
 which then can be used in downstream tasks. Furthermore, support for generation of the dataset is given (currently disabled)
-
-
 """
 
-from torch_geometric.data import InMemoryDataset, Data
-from dataclasses import dataclass
-from typing import Callable, Dict, List, Mapping, Optional, Sequence, Tuple, Union, Any, TypeAlias
-import gzip
 import logging
 import os
+from dataclasses import dataclass
 from pathlib import Path
-import torch 
-import numpy as np
-import pandas as pd
-import requests
-#import tarfile
-#import xarray as xr
-#import gcsfs
-#from weatherforecasting_helpers.graph_dataset_creator import create_graph_dataset
+from typing import Callable, Dict, List, Optional, Union
+
+from torch_geometric.data import Data, InMemoryDataset
+
 from graphbench.helpers.download import _download_and_unpack
+
+
 # (i) helper functions
 
 # -----------------------------------------------------------------------------#
