@@ -58,7 +58,7 @@ class ChipDesignDataset(InMemoryDataset):
         root: Union[str, Path],
         transform: Optional[Callable] = None,
         pre_transform: Optional[Callable] = None,
-        cleanup_raw: bool = True,
+        cleanup_raw: bool = False,  # TODO Disabling this for now since it leads to errors on my machine
         # TODO: This should be removed in the future -- the user will download these files
         load_preprocessed = False,):
         
