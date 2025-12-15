@@ -1,0 +1,122 @@
+name: Import Compatibility Test
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test-imports:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        python-version: ['3.10', '3.11', '3.12']
+        numpy-version: ['1.21.0', '1.22.0', '1.23.0', '1.24.0', '1.25.0', '1.26.0', '2.0.0']
+        torch-version: ['1.12.0', '1.13.0', '2.0.0', '2.2.0', '2.3.0']
+        exclude:
+          # PyTorch 1.12-1.13 don't support Python 3.11+
+          - python-version: '3.11'
+            torch-version: '1.12.0'
+          - python-version: '3.11'
+            torch-version: '1.13.0'
+          - python-version: '3.12'
+            torch-version: '1.12.0'
+          - python-version: '3.12'
+            torch-version: '1.13.0'
+          - python-version: '3.12'
+            torch-version: '2.0.0'
+          # NumPy 1.21-1.23 don't support Python 3.11+
+          - python-version: '3.11'
+            numpy-version: '1.21.0'
+          - python-version: '3.11'
+            numpy-version: '1.22.0'
+          - python-version: '3.11'
+            numpy-version: '1.23.0'
+          - python-version: '3.12'
+            numpy-version: '1.21.0'
+          - python-version: '3.12'
+            numpy-version: '1.22.0'
+          - python-version: '3.12'
+            numpy-version: '1.23.0'
+          - python-version: '3.12'
+            numpy-version: '1.24.0'
+
+    name: ${{ matrix.os }} - Python ${{ matrix.python-version }}, NumPy ${{ matrix.numpy-version }}, PyTorch ${{ matrix.torch-version }}
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+    
+    - name: Install SWIG (macOS)
+      if: runner.os == 'macOS'
+      run: brew install swig
+    
+    - name: Upgrade setuptools and wheel
+      run: |
+        python -m pip install --upgrade pip setuptools wheel
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install numpy==${{ matrix.numpy-version }}
+        pip install torch==${{ matrix.torch-version }} --index-url https://download.pytorch.org/whl/cpu
+           
+    - name: Install graphbench package
+      run: |
+        pip install -e .
+    
+    - name: Test imports
+      run: |
+        python -c "import graphbench; print('✓ import graphbench successful')"
+        python -c "from graphbench import loader; print('✓ from graphbench import loader successful')"
+        python -c "import sys; import numpy; import torch; print(f'Python {sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}, NumPy {numpy.__version__}, PyTorch {torch.__version__}')"
+    
+    - name: Display package versions
+      if: always()
+      run: |
+        pip list
+
+  test-latest-versions:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        python-version: ['3.10', '3.11', '3.12']
+    
+    name: ${{ matrix.os }} - Python ${{ matrix.python-version }} with latest packages
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+    
+    - name: Install SWIG (macOS)
+      if: runner.os == 'macOS'
+      run: brew install swig
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install numpy torch --index-url https://download.pytorch.org/whl/cpu
+    
+    - name: Install graphbench package
+      run: |
+        pip install -e .
+    
+    - name: Test imports
+      run: |
+        python -c "import graphbench; print('✓ import graphbench successful')"
+        python -c "from graphbench import loader; print('✓ from graphbench import loader successful')"
+        python -c "import sys; import numpy; import torch; print(f'Python {sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}, NumPy {numpy.__version__}, PyTorch {torch.__version__}')"
+    
+    - name: Display package versions
+      if: always()
+      run: |
+        pip list
