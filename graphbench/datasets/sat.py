@@ -688,6 +688,8 @@ class SATDataset(InMemoryDataset):
             lit_edges = np.stack([np.arange(n_vars), np.arange(n_vars, 2 * n_vars)], axis=0)
             lit_edges = np.concatenate([lit_edges, lit_edges[::-1]], axis=1)
             data["literal", "complement", "literal"].edge_index = torch.from_numpy(lit_edges.astype(np.int64))
+            # Complement edges get a constant edge_attr (0.0) for consistency with other edge types
+            data["literal", "complement", "literal"].edge_attr = torch.zeros((2 * n_vars, 1), dtype=torch.float)
             # Don't set num_edges for HeteroData - PyG computes it from edge indices
             return data
         
@@ -780,6 +782,8 @@ class SATDataset(InMemoryDataset):
         lit_edges = np.stack([np.arange(n_vars), np.arange(n_vars, 2 * n_vars)], axis=0)
         lit_edges = np.concatenate([lit_edges, lit_edges[::-1]], axis=1)
         data["literal", "complement", "literal"].edge_index = torch.from_numpy(lit_edges.astype(np.int64))
+        # Complement edges get a constant edge_attr (0.0) for consistency with other edge types
+        data["literal", "complement", "literal"].edge_attr = torch.zeros((2 * n_vars, 1), dtype=torch.float)
 
         # Don't set num_nodes/num_edges for HeteroData - PyG computes them from node/edge indices
         return data
@@ -864,7 +868,10 @@ class SATDataset(InMemoryDataset):
             edge_buffer = edge_buffer[:n_edges]
             # Use numpy unique to deduplicate
             unique_edges = np.unique(edge_buffer, axis=0)
-            edge_index = torch.from_numpy(unique_edges.T).contiguous()
+            # Add reverse edges to make graph undirected
+            reverse_edges = unique_edges[:, ::-1]
+            all_edges = np.concatenate([unique_edges, reverse_edges], axis=0)
+            edge_index = torch.from_numpy(all_edges.T.copy()).contiguous()
         else:
             edge_index = torch.zeros((2, 0), dtype=torch.long)
 
@@ -1024,14 +1031,6 @@ class SATDataset(InMemoryDataset):
             data = self.create_literal_clause_graph(clauses, n_vars)
         elif graph_type == "vg":
             data = self.create_variable_graph(clauses, n_vars)
-
-        
-        try:
-            to_undirected = T.ToUndirected()
-            data = to_undirected(data)
-        except Exception as e:
-            print(f"Error making graph undirected: {e}")
-            print(f"File: {original_file_path}")
             
         if pre_transform is not None:
             data = pre_transform(data)
@@ -1138,8 +1137,6 @@ class SATDataset(InMemoryDataset):
             for _, instance in tqdm(self.instances_csv.iterrows()):
                 futures.append(executor.submit(self.process_file, instance.to_dict(), self.graph_type, self.pre_transform))
                 cnt += 1
-                if cnt == 100:
-                    break
                 # self.process_file(instance.to_dict(), self.graph_type, self.pre_transform, True)
             # futures = [
             #     executor.submit(process_file, instance.to_dict(), self.graph_type)
@@ -1162,7 +1159,7 @@ class SATDataset(InMemoryDataset):
                     raise e
             
         print("Combining results...", flush=True)
-        graphs = [fs.torch_load(os.path.join(tempfile.gettempdir(), f"{instance['filename']}.pt")) for _, instance in self.instances_csv.iloc[:100].iterrows()]
+        graphs = [fs.torch_load(os.path.join(tempfile.gettempdir(), f"{instance['filename']}.pt")) for _, instance in self.instances_csv.iterrows()]
         
         return graphs 
 
