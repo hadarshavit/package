@@ -26,6 +26,7 @@ import torch_geometric.transforms as T
 from sklearn.decomposition import PCA
 from torch_geometric.data import Data, HeteroData, InMemoryDataset
 from torch_geometric.io import fs
+from torch_geometric.utils import is_undirected
 from tqdm import tqdm
 
 from graphbench.helpers.download import _download_and_unpack
@@ -76,11 +77,12 @@ def _sinusoidal_positional_encoding(positions: np.ndarray, dim: int = 10) -> np.
     Returns:
         Array of shape (len(positions), dim) with positional encodings
     """
-    positions = np.asarray(positions).reshape(-1, 1)
+    positions = np.asarray(positions, dtype=np.float32).reshape(-1, 1)
     div_term = np.exp(np.arange(0, dim, 2) * -(np.log(10000.0) / dim))
     pe = np.zeros((len(positions), dim))
-    pe[:, 0::2] = np.sin(positions * div_term)
-    pe[:, 1::2] = np.cos(positions * div_term[:dim//2] if dim % 2 else div_term)
+    angles = positions * div_term.reshape(1, -1)
+    pe[:, 0::2] = np.sin(angles)
+    pe[:, 1::2] = np.cos(angles[:, :pe[:, 1::2].shape[1]])
     return pe
 
 
@@ -345,6 +347,14 @@ def _flatten_clauses(clauses: List) -> tuple:
     
     return clauses_flat, clause_offsets, clause_lens
 
+
+def _drop_tautological_clauses(clauses: List) -> List:
+    return [clause for clause in clauses if len(set(np.abs(clause))) == len(set(clause))]
+
+
+def _unique_literals_per_clause(clauses: List) -> List:
+    return [list(dict.fromkeys(clause)) for clause in clauses]
+
 class SATDataset(InMemoryDataset):
     def __init__(
         self,
@@ -495,7 +505,7 @@ class SATDataset(InMemoryDataset):
         super().__init__(str(self.graphs_dir), transform, pre_transform)
 
         # process data if needed
-        if self.processed_path.exists():
+        if os.path.exists(self.processed_paths[0]):
             self.load(self.processed_paths[0])
             return
 
@@ -536,6 +546,7 @@ class SATDataset(InMemoryDataset):
             20: is_definite_horn (exactly 1 positive literal)
             21: is_negative_clause (all literals negative)
         """
+        clauses = _drop_tautological_clauses(_unique_literals_per_clause(clauses))
         data = HeteroData()
         n_clauses = len(clauses)
         
@@ -673,6 +684,7 @@ class SATDataset(InMemoryDataset):
             20: is_definite_horn (exactly 1 positive literal)
             21: is_negative_clause (all literals negative)
         """
+        clauses = _unique_literals_per_clause(clauses)
         data = HeteroData()
         n_clauses = len(clauses)
         
@@ -788,6 +800,24 @@ class SATDataset(InMemoryDataset):
         # Don't set num_nodes/num_edges for HeteroData - PyG computes them from node/edge indices
         return data
 
+    @staticmethod
+    def _to_homogeneous_graph(data):
+        if hasattr(data, "node_stores") and not hasattr(data, "edge_index") and hasattr(data, "to_homogeneous"):
+            try:
+                data = data.to_homogeneous(node_attrs=["x"], edge_attrs=["edge_attr"])
+            except Exception:
+                try:
+                    data = data.to_homogeneous(node_attrs=["x"], edge_attrs=[])
+                except Exception:
+                    data = data.to_homogeneous(node_attrs=[], edge_attrs=[])
+        return data
+
+    @staticmethod
+    def _assert_homogeneous_graph(data):
+        if hasattr(data, "node_stores") and not hasattr(data, "edge_index"):
+            raise TypeError("SATDataset must return homogeneous torch_geometric.data.Data objects.")
+        return data
+
 
     def create_variable_graph(self, clauses, n_vars):
         """
@@ -810,6 +840,7 @@ class SATDataset(InMemoryDataset):
             10: total_clause_appearances (number of distinct clauses)
             11: avg_co_occurrence_degree (average co-occurrence per clause)
         """
+        clauses = _unique_literals_per_clause(clauses)
         n_clauses = len(clauses)
         
         if n_clauses == 0:
@@ -906,6 +937,7 @@ class SATDataset(InMemoryDataset):
             20: is_definite_horn (exactly 1 positive literal)
             21: is_negative_clause (all literals negative)
         """
+        clauses = _unique_literals_per_clause(clauses)
         n_clauses = len(clauses)
         
         if n_clauses == 0:
@@ -1006,11 +1038,22 @@ class SATDataset(InMemoryDataset):
         header = lines[i].strip().split()
         n_vars = int(header[2])
         clauses = []
+        current_clause = []
 
         for line in lines[i + 1 :]:
             tokens = line.strip().split()
-            clause = [int(s) for s in tokens[:-1]]
-            clauses.append(clause)
+            if not tokens or tokens[0] in {"c", "%", "0"}:
+                continue
+            for token in tokens:
+                lit = int(token)
+                if lit == 0:
+                    clauses.append(current_clause)
+                    current_clause = []
+                else:
+                    current_clause.append(lit)
+
+        if current_clause:
+            clauses.append(current_clause)
 
         return n_vars, clauses
 
@@ -1018,8 +1061,11 @@ class SATDataset(InMemoryDataset):
     def process_file(self,instance, graph_type, pre_transform=None):
     
         gc.collect()
+        raw_file_name = instance.get("raw_file_names", instance.get("filename"))
         original_file_path = Path("/storage/work/graph_bench/dataset/raw_preprocessed") / instance["filename"]
-
+        # original_file_path = Path(raw_file_name)
+        if not original_file_path.is_absolute():
+            original_file_path = self._raw_dir / original_file_path
 
         n_vars, clauses = self.parse_cnf_file(original_file_path)
 
@@ -1031,6 +1077,12 @@ class SATDataset(InMemoryDataset):
             data = self.create_literal_clause_graph(clauses, n_vars)
         elif graph_type == "vg":
             data = self.create_variable_graph(clauses, n_vars)
+        else:
+            raise ValueError(f"Unsupported SAT graph type: {graph_type}")
+
+        data = self._to_homogeneous_graph(data)
+        data = T.ToUndirected()(data)
+        self._assert_homogeneous_graph(data)
             
         if pre_transform is not None:
             data = pre_transform(data)
@@ -1039,7 +1091,9 @@ class SATDataset(InMemoryDataset):
 
     def get(self, idx):
         data = super().get(idx)
-        assert data.is_undirected()
+        data = self._to_homogeneous_graph(data)
+        self._assert_homogeneous_graph(data)
+        assert is_undirected(data.edge_index, num_nodes=data.num_nodes)
         instance = self.instances_csv.iloc[idx]
         times = self.runs.loc[instance["filename"]]
 
@@ -1054,7 +1108,7 @@ class SATDataset(InMemoryDataset):
             if y < 0.05:
                 y = 0.05
 
-            status = times[times["solver_name"] == self.solver]["status"].values
+            status = times[times["solver_name"] == self.solver]["status"].values[0]
             if status not in ["SAT", "UNSAT"]:
                 y = 50_000
 
@@ -1065,7 +1119,7 @@ class SATDataset(InMemoryDataset):
                 y = (y - self.target_mean) / self.target_std
             
             if self.use_satzilla_features:
-                data.x = feat_tensor.reshape(-1, 1)
+                data.x = feat_tensor
             data.y = torch.tensor([y], dtype=torch.bfloat16)
 
             return data
@@ -1089,7 +1143,7 @@ class SATDataset(InMemoryDataset):
                 y = (y - self.target_mean) / self.target_std
             
             if self.use_satzilla_features:
-                data.x = feat_tensor.reshape(-1, 1)
+                data.x = feat_tensor
             data.y = torch.tensor(y, dtype=torch.bfloat16).unsqueeze(0)
 
             return data
@@ -1135,7 +1189,7 @@ class SATDataset(InMemoryDataset):
         with ProcessPoolExecutor(max_workers=64) as executor:
             cnt = 0
             for _, instance in tqdm(self.instances_csv.iterrows()):
-                futures.append(executor.submit(self.process_file, instance.to_dict(), self.graph_type, self.pre_transform))
+                futures.append(executor.submit(self.process_file, instance.to_dict(), self.graph_type, None))
                 cnt += 1
                 # self.process_file(instance.to_dict(), self.graph_type, self.pre_transform, True)
             # futures = [
@@ -1174,15 +1228,20 @@ class SATDataset(InMemoryDataset):
                data_list = [self.pre_transform(d) for d in data_list]
             self.save(data_list, self.processed_paths[0])
             logger.info(f"Saved processed dataset -> {self.processed_path}")
-        # else:
-        #     _download_and_unpack(source=self.source, raw_dir=self._raw_dir, processed_dir=self.processed_path, logger=logger)
+        else:
+            _download_and_unpack(
+                source=self.source,
+                raw_dir=self._raw_dir,
+                processed_dir=self.processed_path,
+                logger=logger,
+            )
 
-        #     loader = self._load_sat_graphs
-        #     loader_kwargs = {}
-        #     loader(**loader_kwargs)
-        #     data_list = [self.get(i) for i in range(len(self))]
-        #     if self.pre_transform is not None:
-        #         data_list = [self.pre_transform(d) for d in data_list]
+            self._load_sat_graphs()
+            data_list = [self.get(i) for i in range(len(self))]
+            if self.pre_transform is not None:
+                data_list = [self.pre_transform(d) for d in data_list]
+            self.save(data_list, self.processed_paths[0])
+            logger.info(f"Saved processed dataset -> {self.processed_path}")
         
 
 
@@ -1211,7 +1270,7 @@ class SATDataset(InMemoryDataset):
         Returns a list of filenames matching the convention in the directory.
         """
 
-        pattern = f"data_{size}_{graph_type}_features.pt"
+        pattern = f"data_{size}_{graph_type}_no_trans.pt"
         return [os.path.join(directory, fname)
                 for fname in os.listdir(directory)
                 if fname == pattern]
@@ -1224,7 +1283,8 @@ class SATDataset(InMemoryDataset):
 
     @property
     def processed_file_names(self) -> List[str]:  # unused, we drive our own cache
-        return ["data.pt"]
+        features = "satzilla" if self.use_satzilla_features else "graph"
+        return [f"{self.name}_{self.split}_{features}.pt"]
 
     def process(self):
         self._prepare()

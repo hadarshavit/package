@@ -9,5 +9,4 @@ parser.add_argument("--split", type=str, default="train")
 parser.add_argument("--generate", type=bool, default=True)
 args = parser.parse_args()
 
-root = args.root + f"_{args.name}"
-SATDataset(name=args.name, split=args.split, root=root, generate=args.generate)
+SATDataset(name=args.name, split=args.split, root=args.root, generate=args.generate)

@@ -9,10 +9,13 @@ This script creates SATDataset instances (with generate=False) and extracts:
 """
 
 import argparse
+import os
 from pathlib import Path
 import numpy as np
-from torch_geometric.utils import to_undirected
 from graphbench.datasets.sat import SATDataset
+
+
+DEFAULT_DATA_ROOT = "/storage/work/graph_bench/dataset_test"
 
 
 def analyze_hetero_data(data, name):
@@ -59,8 +62,7 @@ def analyze_hetero_data(data, name):
     print(f"\n--- After to_homogeneous() conversion ---")
     assert data.is_undirected()
     homo_data = data.to_homogeneous()
-    # Note: homo_data may not be strictly undirected after conversion due to 
-    # how PyG merges edge types with different edge_attr values
+    assert homo_data.is_undirected()
     print(f"  - data.x shape: {tuple(homo_data.x.shape)}")
     print(f"  - data.edge_index shape: {tuple(homo_data.edge_index.shape)}")
     if hasattr(homo_data, 'edge_attr') and homo_data.edge_attr is not None:
@@ -75,6 +77,7 @@ def analyze_hetero_data(data, name):
 
 def analyze_homo_data(data, name):
     """Analyze a homogeneous Data object (VG or CG)."""
+    assert data.is_undirected()
     print(f"\n{'='*60}")
     print(f"Dataset: {name}")
     print(f"{'='*60}")
@@ -483,17 +486,21 @@ def analyze_dataset_statistics(dataset, dataset_name):
 
 def main():
     parser = argparse.ArgumentParser(description="Analyze SAT dataset information")
-    parser.add_argument("--root", type=str, default="/storage/work/graph_bench/dataset",
+    parser.add_argument("--root", type=str,
+                        default=os.environ.get("GRAPHBENCH_DATA_ROOT", DEFAULT_DATA_ROOT),
                         help="Root directory for datasets")
     parser.add_argument("--name", type=str, 
                         default="sat_lcg_as", 
                         help="Dataset name to analyze (e.g., small_vcg, small_lcg, small_vg, small_cg)")
+    parser.add_argument("--split", type=str, default="train",
+                        choices=["train", "val", "test", "all"],
+                        help="Dataset split to analyze, or 'all' for train+val+test")
     parser.add_argument("--descriptions-only", action="store_true",
                         help="Only print feature descriptions without loading datasets")
     parser.add_argument("--skip-descriptions", action="store_true",
                         help="Skip printing feature descriptions")
     args = parser.parse_args()
-    root = args.root + f"_{args.name}"
+    args.root = str(Path(args.root).expanduser())
     
     # Print feature descriptions unless skipped
     if not args.skip_descriptions:
@@ -507,31 +514,190 @@ def main():
         
         try:
             print(f"\nLoading {dataset_name}...")
-            print(f"Root: {root}")
-            dataset = SATDataset(
-                name=dataset_name,
-                split="train",
-                root=root,
-                generate=False
-            )
+            print(f"Root: {args.root}")
             
-            # Compute dataset-wide statistics
-            analyze_dataset_statistics(dataset, dataset_name)
+            # Load the requested split, or all splits for combined statistics.
+            splits = ["train", "val", "test"] if args.split == "all" else [args.split]
+            all_datasets = {}
+            combined_node_counts = []
+            combined_edge_counts = []
+            total_samples = 0
+            
+            for split in splits:
+                try:
+                    ds = SATDataset(
+                        name=dataset_name,
+                        split=split,
+                        root=args.root,
+                        generate=False
+                    )
+                    all_datasets[split] = ds
+                    print(f"  Loaded {split} split: {len(ds)} samples")
+                except Exception as e:
+                    print(f"  Warning: Could not load {split} split: {e}")
+            
+            if not all_datasets:
+                print(f"  Error: No splits could be loaded for {dataset_name}")
+                continue
+            
+            # Use first available dataset for structure info
+            first_dataset = list(all_datasets.values())[0]
+            
+            # Collect statistics from all splits
+            split_label = "+".join(all_datasets.keys())
+            print(f"\n--- Computing Statistics ({split_label}) ---")
+            for split, ds in all_datasets.items():
+                for i in range(len(ds)):
+                    data = ds[i]
+                    is_hetero = hasattr(data, 'node_types')
+                    
+                    # Get node count
+                    if hasattr(data, 'num_nodes') and data.num_nodes is not None:
+                        num_nodes = int(data.num_nodes) if hasattr(data.num_nodes, 'item') else data.num_nodes
+                    elif is_hetero:
+                        num_nodes = sum(data[nt].x.shape[0] for nt in data.node_types 
+                                      if hasattr(data[nt], 'x') and data[nt].x is not None)
+                    elif hasattr(data, 'x') and data.x is not None:
+                        num_nodes = data.x.shape[0]
+                    else:
+                        num_nodes = 0
+                    
+                    # Get edge count
+                    if hasattr(data, 'num_edges') and data.num_edges is not None:
+                        num_edges = int(data.num_edges) if hasattr(data.num_edges, 'item') else data.num_edges
+                    elif is_hetero:
+                        num_edges = sum(data[et].edge_index.shape[1] for et in data.edge_types 
+                                      if hasattr(data[et], 'edge_index') and data[et].edge_index is not None)
+                    elif hasattr(data, 'edge_index') and data.edge_index is not None:
+                        num_edges = data.edge_index.shape[1]
+                    else:
+                        num_edges = 0
+                    
+                    combined_node_counts.append(num_nodes)
+                    combined_edge_counts.append(num_edges)
+                    total_samples += 1
+            
+            combined_node_counts = np.array(combined_node_counts)
+            combined_edge_counts = np.array(combined_edge_counts)
+            
+            # Print combined statistics
+            print(f"\n{'='*80}")
+            print(f"DATASET STATISTICS: {dataset_name} ({split_label})")
+            print(f"{'='*80}")
+            
+            print(f"\n--- Split Summary ---")
+            for split, ds in all_datasets.items():
+                print(f"  {split}: {len(ds)} samples")
+            print(f"  Total: {total_samples} samples")
+            
+            # Print feature summary from first dataset
+            sample = first_dataset[0]
+            is_hetero = hasattr(sample, 'node_types')
+            
+            print(f"\n--- Feature Summary ---")
+            if is_hetero:
+                print(f"Graph type: HeteroData")
+                print(f"\nNode types and features:")
+                for node_type in sample.node_types:
+                    node_store = sample[node_type]
+                    if hasattr(node_store, 'x') and node_store.x is not None:
+                        x = node_store.x
+                        print(f"  '{node_type}' nodes:")
+                        print(f"    - Feature dimension (data['{node_type}'].x): {x.shape[1]}")
+                        print(f"    - dtype: {x.dtype}")
+                
+                print(f"\nEdge types and features:")
+                for edge_type in sample.edge_types:
+                    edge_store = sample[edge_type]
+                    src, rel, dst = edge_type
+                    print(f"  Edge type ('{src}', '{rel}', '{dst}'):")
+                    if hasattr(edge_store, 'edge_attr') and edge_store.edge_attr is not None:
+                        edge_attr = edge_store.edge_attr
+                        dim = edge_attr.shape[1] if edge_attr.dim() > 1 else 1
+                        print(f"    - Edge attr dimension: {dim}")
+                        print(f"    - dtype: {edge_attr.dtype}")
+                    else:
+                        print(f"    - Edge attr: None (no edge features)")
+            else:
+                print(f"Graph type: Data (homogeneous)")
+                print(f"\nNode features:")
+                if hasattr(sample, 'x') and sample.x is not None:
+                    x = sample.x
+                    print(f"  - Feature dimension (data.x): {x.shape[1]}")
+                    print(f"  - dtype: {x.dtype}")
+                else:
+                    print(f"  - data.x: None")
+                
+                print(f"\nEdge features:")
+                if hasattr(sample, 'edge_attr') and sample.edge_attr is not None:
+                    edge_attr = sample.edge_attr
+                    dim = edge_attr.shape[1] if edge_attr.dim() > 1 else 1
+                    print(f"  - Edge attr dimension: {dim}")
+                    print(f"  - dtype: {edge_attr.dtype}")
+                else:
+                    print(f"  - data.edge_attr: None (no edge features)")
+            
+            # Target information
+            print(f"\n--- Target Summary ---")
+            if hasattr(sample, 'y') and sample.y is not None:
+                y = sample.y
+                target_dim = y.shape[-1] if y.dim() > 0 and len(y.shape) > 1 else 1
+                print(f"  - Target dimension (data.y): {target_dim}")
+                print(f"  - Target shape: {tuple(y.shape)}")
+                print(f"  - dtype: {y.dtype}")
+                
+                if first_dataset.task_type == "as":
+                    print(f"  - Task: Algorithm Selection (AS)")
+                    print(f"  - Number of solvers: {len(first_dataset.order)}")
+                    print(f"  - Solvers: {first_dataset.order}")
+                elif first_dataset.task_type == "epm":
+                    print(f"  - Task: Empirical Performance Modeling (EPM)")
+                    print(f"  - Solver: {first_dataset.solver}")
+            else:
+                print(f"  - data.y: None")
+            
+            # Other important attributes
+            print(f"\n--- Other Important Attributes ---")
+            print(f"  - dataset.task_type: '{first_dataset.task_type}'")
+            print(f"  - dataset.graph_type: '{first_dataset.graph_type}'")
+            print(f"  - dataset.normalize_targets: {first_dataset.normalize_targets}")
+            if hasattr(first_dataset, 'use_satzilla_features'):
+                print(f"  - dataset.use_satzilla_features: {first_dataset.use_satzilla_features}")
+            if first_dataset.normalize_targets:
+                stats = first_dataset.get_normalization_stats()
+                if stats:
+                    print(f"  - Normalization mean: {stats['mean']:.4f}")
+                    print(f"  - Normalization std: {stats['std']:.4f}")
+            
+            # Print combined node/edge statistics
+            print(f"\n--- Node Statistics (Combined) ---")
+            print(f"  - Minimum nodes: {np.min(combined_node_counts)}")
+            print(f"  - Maximum nodes: {np.max(combined_node_counts)}")
+            print(f"  - Average nodes: {np.mean(combined_node_counts):.2f}")
+            print(f"  - Median nodes: {np.median(combined_node_counts):.2f}")
+            print(f"  - Std nodes: {np.std(combined_node_counts):.2f}")
+            
+            print(f"\n--- Edge Statistics (Combined) ---")
+            print(f"  - Minimum edges: {np.min(combined_edge_counts)}")
+            print(f"  - Maximum edges: {np.max(combined_edge_counts)}")
+            print(f"  - Average edges: {np.mean(combined_edge_counts):.2f}")
+            print(f"  - Median edges: {np.median(combined_edge_counts):.2f}")
+            print(f"  - Std edges: {np.std(combined_edge_counts):.2f}")
             
             # Also show single sample analysis for detailed structure info
             print(f"\n{'='*80}")
-            print(f"SINGLE SAMPLE ANALYSIS (graph 0)")
+            print(f"SINGLE SAMPLE ANALYSIS (graph 0 from first available split)")
             print(f"{'='*80}")
             
-            sample_graph = dataset[0]
+            sample_graph = first_dataset[0]
             
             # Analyze based on graph type
-            if dataset.graph_type in ["vcg", "lcg"]:
+            if first_dataset.graph_type in ["vcg", "lcg"]:
                 analyze_hetero_data(sample_graph, dataset_name)
             else:
                 analyze_homo_data(sample_graph, dataset_name)
             
-            analyze_targets(dataset, dataset_name)
+            analyze_targets(first_dataset, dataset_name)
                 
         except Exception as e:
             print(f"\n[Error loading {dataset_name}: {e}]")
