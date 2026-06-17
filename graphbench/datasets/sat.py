@@ -1283,8 +1283,7 @@ class SATDataset(InMemoryDataset):
 
     @property
     def processed_file_names(self) -> List[str]:  # unused, we drive our own cache
-        features = "satzilla" if self.use_satzilla_features else "graph"
-        return [f"{self.name}_{self.split}_{features}.pt"]
+        return [f"data.pt"]
 
     def process(self):
         self._prepare()
